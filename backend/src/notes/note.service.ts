@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: AGPL-3.0-only
  */
-import { PermissionLevel } from '@hedgedoc/commons';
+import { applyNotePatch, PermissionLevel } from '@hedgedoc/commons';
 import {
   FieldNameAlias,
   FieldNameGroup,
@@ -268,6 +268,37 @@ export class NoteService {
   async updateNote(noteId: number, noteContent: string): Promise<void> {
     this.eventEmitter.emit(NoteEvent.CLOSE_REALTIME, noteId);
     await this.revisionsService.createRevision(noteId, noteContent);
+  }
+
+  /**
+   * Partially updates a note using merge strategy.
+   * Only the specified fields are updated, others are preserved.
+   * The realtime connection is closed beforehand to ensure that realtime editing does not interfere with the update.
+   *
+   * @param noteId the note id
+   * @param patchData the partial update data containing optional title, description, tags, and/or content
+   * @throws NotInDBError if there is no note with this id
+   */
+  async patchNote(
+    noteId: number,
+    patchData: {
+      title?: string;
+      description?: string;
+      tags?: string[];
+      content?: string;
+    },
+  ): Promise<void> {
+    // Close realtime session first
+    this.eventEmitter.emit(NoteEvent.CLOSE_REALTIME, noteId);
+
+    // Get current content
+    const currentContent = await this.getNoteContent(noteId);
+
+    // Apply patch to generate new content
+    const newContent = applyNotePatch(currentContent, patchData);
+
+    // Create new revision with the patched content
+    await this.revisionsService.createRevision(noteId, newContent);
   }
 
   /**

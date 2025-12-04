@@ -13,6 +13,7 @@ import {
   Get,
   Inject,
   Param,
+  Patch,
   Post,
   Put,
   UseGuards,
@@ -25,6 +26,7 @@ import noteConfiguration, { NoteConfig } from '../../../config/note.config';
 import { ChangeNoteOwnerDto } from '../../../dtos/change-note-owner.dto';
 import { MediaUploadDto } from '../../../dtos/media-upload.dto';
 import { NoteGroupPermissionEntryDto } from '../../../dtos/note-group-permission-entry.dto';
+import { NotePatchDto } from '../../../dtos/note-patch.dto';
 import { NoteGroupPermissionUpdateDto } from '../../../dtos/note-group-permission-update.dto';
 import { NoteMetadataDto } from '../../../dtos/note-metadata.dto';
 import { NotePermissionsDto } from '../../../dtos/note-permissions.dto';
@@ -142,6 +144,22 @@ export class NotesController {
     }
     await this.noteService.deleteNote(noteId);
     this.logger.debug(`Successfully deleted ${noteId}`, 'deleteNote');
+  }
+
+  @Patch(':noteAlias')
+  @OpenApi(200, 400, 404)
+  @RequirePermission(PermissionLevel.WRITE)
+  @UseInterceptors(GetNoteIdInterceptor)
+  async patchNote(
+    @RequestNoteId() noteId: number,
+    @Body() patchData: NotePatchDto,
+  ): Promise<NoteDto> {
+    this.logger.debug(
+      `Patching note with: ${JSON.stringify(patchData)}`,
+      'patchNote',
+    );
+    await this.noteService.patchNote(noteId, patchData);
+    return await this.noteService.toNoteDto(noteId);
   }
 
   @UseInterceptors(GetNoteIdInterceptor)

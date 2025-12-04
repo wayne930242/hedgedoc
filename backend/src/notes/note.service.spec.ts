@@ -453,6 +453,175 @@ describe('NoteService', () => {
     });
   });
 
+  describe('patchNote', () => {
+    let eventEmitterSpy: jest.SpyInstance;
+    let revisionServiceSpy: jest.SpyInstance;
+    let getNoteContentSpy: jest.SpyInstance;
+
+    const mockExistingContentWithFrontmatter = `---
+title: ${mockNoteTitle}
+description: ${mockNoteDescription}
+tags:
+  - ${mockTags[0]}
+  - ${mockTags[1]}
+---
+${mockNoteContent}`;
+
+    const mockExistingContentWithoutFrontmatter = mockNoteContent;
+
+    beforeEach(() => {
+      eventEmitterSpy = jest.spyOn(eventEmitter, 'emit').mockReturnValue(true);
+      revisionServiceSpy = jest
+        .spyOn(revisionService, 'createRevision')
+        .mockImplementation(async () => {});
+      getNoteContentSpy = jest.spyOn(service, 'getNoteContent');
+    });
+
+    afterEach(() => {
+      expect(eventEmitterSpy).toHaveBeenCalledWith(
+        NoteEvent.CLOSE_REALTIME,
+        mockNoteId,
+      );
+      expect(getNoteContentSpy).toHaveBeenCalledWith(mockNoteId);
+    });
+
+    describe('with existing frontmatter', () => {
+      beforeEach(() => {
+        getNoteContentSpy.mockResolvedValue(mockExistingContentWithFrontmatter);
+      });
+
+      it('updates only the title and preserves other fields', async () => {
+        const newTitle = 'New Title';
+        await service.patchNote(mockNoteId, { title: newTitle });
+
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(`title: ${newTitle}`),
+        );
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(`description: ${mockNoteDescription}`),
+        );
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(mockNoteContent),
+        );
+      });
+
+      it('updates only the description and preserves other fields', async () => {
+        const newDescription = 'New Description';
+        await service.patchNote(mockNoteId, { description: newDescription });
+
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(`title: ${mockNoteTitle}`),
+        );
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(`description: ${newDescription}`),
+        );
+      });
+
+      it('updates only the tags and preserves other fields', async () => {
+        const newTags = ['completely-new', 'another-new'];
+        await service.patchNote(mockNoteId, { tags: newTags });
+
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(`title: ${mockNoteTitle}`),
+        );
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(newTags[0]),
+        );
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(newTags[1]),
+        );
+        // Original tags should be replaced
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.not.stringContaining(`- ${mockTags[0]}`),
+        );
+      });
+
+      it('updates only the content and preserves frontmatter', async () => {
+        const newContent = '# New Content\n\nThis is new content.';
+        await service.patchNote(mockNoteId, { content: newContent });
+
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(`title: ${mockNoteTitle}`),
+        );
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(newContent),
+        );
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.not.stringContaining(mockNoteContent),
+        );
+      });
+
+      it('updates multiple fields at once', async () => {
+        const newTitle = 'New Title';
+        const newDescription = 'New Description';
+        const newTags = ['new-tag1', 'new-tag2'];
+        await service.patchNote(mockNoteId, {
+          title: newTitle,
+          description: newDescription,
+          tags: newTags,
+        });
+
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(`title: ${newTitle}`),
+        );
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(`description: ${newDescription}`),
+        );
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(newTags[0]),
+        );
+      });
+    });
+
+    describe('without existing frontmatter', () => {
+      beforeEach(() => {
+        getNoteContentSpy.mockResolvedValue(
+          mockExistingContentWithoutFrontmatter,
+        );
+      });
+
+      it('adds frontmatter when title is provided', async () => {
+        const newTitle = 'New Title';
+        await service.patchNote(mockNoteId, { title: newTitle });
+
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining('---'),
+        );
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(`title: ${newTitle}`),
+        );
+        expect(revisionServiceSpy).toHaveBeenCalledWith(
+          mockNoteId,
+          expect.stringContaining(mockNoteContent),
+        );
+      });
+
+      it('updates only the content without adding frontmatter', async () => {
+        const newContent = '# New Content';
+        await service.patchNote(mockNoteId, { content: newContent });
+
+        expect(revisionServiceSpy).toHaveBeenCalledWith(mockNoteId, newContent);
+      });
+    });
+  });
+
   describe('toNotePermissionsDto', () => {
     it('throws NotInDBError if a note does not exist', async () => {
       mockSelect(

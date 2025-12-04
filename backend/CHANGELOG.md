@@ -8,6 +8,10 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 ## [Unreleased]
 
+### Added
+
+- `PATCH` endpoint for partial note updates
+
 ### Removals
 
 - Dropbox Login

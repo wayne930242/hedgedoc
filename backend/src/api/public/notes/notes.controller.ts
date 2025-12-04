@@ -8,6 +8,7 @@ import {
   MediaUploadSchema,
   NoteMetadataSchema,
   NotePermissionsSchema,
+  NotePatchSchema,
   NoteSchema,
   RevisionMetadataSchema,
   RevisionSchema,
@@ -18,6 +19,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   UseGuards,
@@ -27,6 +29,7 @@ import { ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { MediaUploadDto } from '../../../dtos/media-upload.dto';
 import { NoteMetadataDto } from '../../../dtos/note-metadata.dto';
+import { NotePatchDto } from '../../../dtos/note-patch.dto';
 import { NotePermissionsDto } from '../../../dtos/note-permissions.dto';
 import { NoteDto } from '../../../dtos/note.dto';
 import { NoteMediaDeletionDto } from '../../../dtos/note.media-deletion.dto';
@@ -163,6 +166,33 @@ export class NotesController {
   ): Promise<NoteDto> {
     this.logger.debug('Got raw markdown:\n' + text, 'updateNote');
     await this.noteService.updateNote(noteId, text);
+    return await this.noteService.toNoteDto(noteId);
+  }
+
+  @UseInterceptors(GetNoteIdInterceptor)
+  @RequirePermission(PermissionLevel.WRITE)
+  @Patch(':noteAlias')
+  @OpenApi(
+    {
+      code: 200,
+      description:
+        'The updated note after applying partial changes. Only specified fields are updated, others are preserved.',
+      schema: NoteSchema,
+    },
+    400,
+    403,
+    404,
+  )
+  async patchNote(
+    @RequestUserId() userId: number,
+    @RequestNoteId() noteId: number,
+    @Body() patchData: NotePatchDto,
+  ): Promise<NoteDto> {
+    this.logger.debug(
+      `Patching note with: ${JSON.stringify(patchData)}`,
+      'patchNote',
+    );
+    await this.noteService.patchNote(noteId, patchData);
     return await this.noteService.toNoteDto(noteId);
   }
 
